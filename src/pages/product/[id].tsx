@@ -1,33 +1,79 @@
+import { GetStaticProps } from 'next'
 import Image from 'next/image'
 import { useRouter } from 'next/router'
+import Stripe from 'stripe'
 
+import { stripe } from '@/lib/stripe'
 import {
   ImageContainer,
   ProductContainer,
   ProductDetails,
 } from '@/styles/pages/product'
 
-export default function Product() {
-  const { query } = useRouter()
+interface ProductProps {
+  product: {
+    id: string
+    name: string
+    imageUrl: string
+    price: number
+    description: string
+  }
+}
 
+export default function Product({ product }: ProductProps) {
   return (
     <ProductContainer>
       <ImageContainer>
-        <Image src="" alt="" />
+        <Image src={product.imageUrl} width={520} height={480} alt="" />
       </ImageContainer>
       <ProductDetails>
-        <h1>Camiseta x</h1>
-        <span>R$ 79,90</span>
+        <h1>{product.name}</h1>
+        <span>
+          {(product.price / 100).toLocaleString('pt-BR', {
+            style: 'currency',
+            currency: 'BRL',
+          })}
+        </span>
 
-        <p>
-          Lorem ipsum dolor sit amet consectetur, adipisicing elit. Aperiam
-          consequuntur assumenda facere ab! Unde alias, animi, quaerat sit
-          reiciendis, doloribus exercitationem repellendus dolorum esse maiores
-          provident voluptates a. Vero, minus.
-        </p>
+        <p>{product.description}</p>
 
         <button>Comprar agora</button>
       </ProductDetails>
     </ProductContainer>
   )
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const getStaticProps: GetStaticProps<any, { id: string }> = async ({
+  params,
+}) => {
+  const productId = params?.id
+
+  if (!productId) {
+    return {
+      props: {
+        product: {},
+      },
+      revalidate: 60 * 60 * 1, // 1 hour
+    }
+  }
+
+  const product = await stripe.products.retrieve(productId, {
+    expand: ['default_price'],
+  })
+
+  const price = product.default_price as Stripe.Price
+
+  return {
+    props: {
+      product: {
+        id: product.id,
+        name: product.name,
+        imageUrl: product.images[0],
+        price: price.unit_amount,
+        description: product.description,
+      },
+    },
+    revalidate: 60 * 60 * 1, // 1 hour
+  }
 }
